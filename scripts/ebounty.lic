@@ -9,11 +9,24 @@
   contributors: Deysh, Nisugi, Tysong, Rinualdo
           game: Gemstone
           tags: bounty, adventure's guild, advguild, bounties
+      required: Lich >= 5.12.10
+       version: 1.8.0
       requires: Lich >= 5.12.5
        version: 1.7.2
 
   Version Control:
   Major_change.feature_addition.bugfix
+  v.1.8.0 (2025-11-18)
+    - added option to get a new bounty before quitting when set to "Run one bounty and quit"
+  v1.7.5 (2025-11-11)
+    - bugfix in minimum Lich required checks
+  v1.7.4 (2025-11-11)
+    - bugfix for go2_rest - settings[:resting_room] converted to array and current_room a string
+  v1.7.3 (2025-10-01)
+   - updates for Sailor's Grief
+   - added support for uids
+   - bugfix for saving settings
+   - general code cleanup
   v1.7.3 (2025-11-10)
     - add option to pick up a new bounty before quitting once-and-done runs
   v1.7.2 (2025-09-08)
@@ -1074,6 +1087,7 @@ module EBounty
         remove_heirloom: { default: false },
         once_and_done: { default: false },
         new_bounty_on_exit: { default: false },
+        new_bounty_on_exit: { default: false },
         keep_hunting: { default: false },
         basic: { default: false },
         selling_script: { default: 'eloot' },
@@ -1650,6 +1664,14 @@ module EBounty
           end
 
           @settings[key] = obj.active?
+
+          if key == :once_and_done && defined?(@new_bounty_on_exit) && @new_bounty_on_exit
+            @new_bounty_on_exit.set_sensitive(obj.active?)
+            unless obj.active?
+              @new_bounty_on_exit.active = false
+              @settings[:new_bounty_on_exit] = false
+            end
+          end
         elsif obj.class == Gtk::Entry
           @settings[key] = obj.text.strip
         elsif obj.class == Gtk::SpinButton
@@ -1707,9 +1729,16 @@ module EBounty
               use_script
               once_and_done
               new_bounty_on_exit
+              once_and_done
+              new_bounty_on_exit
             ].include?(key)
 
             obj.active = @settings[key]
+            if key == :new_bounty_on_exit
+              obj.set_sensitive(@settings[:once_and_done])
+            elsif key == :once_and_done && defined?(@new_bounty_on_exit) && @new_bounty_on_exit
+              @new_bounty_on_exit.set_sensitive(obj.active?)
+            end
             if key == :new_bounty_on_exit
               obj.set_sensitive(@settings[:once_and_done])
             elsif key == :once_and_done && defined?(@new_bounty_on_exit) && @new_bounty_on_exit
@@ -2337,6 +2366,7 @@ module EBounty
         Task.bounty_remove
         if EBounty.data.settings[:once_and_done] && Effects::Cooldowns.active?("Next Bounty")
           Task.get_new_bounty_before_exit
+          Task.get_new_bounty_before_exit
           EBounty.go2_rest
           EBounty.exit_script
         end
@@ -2527,6 +2557,7 @@ module EBounty
 
       if EBounty.data.settings[:once_and_done]
         EBounty.silver_deposit
+        Task.get_new_bounty_before_exit
         Task.get_new_bounty_before_exit
         EBounty.go2_rest
         EBounty.exit_script
